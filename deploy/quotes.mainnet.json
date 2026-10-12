@@ -1,0 +1,7 @@
+{
+  "//": "Arch mainnet quote assets. Mint addresses read from the live chain on 2026-10-11; bootstrap re-checks each one before using it.",
+  "quotes": [
+    { "symbol": "BTC", "name": "Arch Bitcoin (aBTC)", "mint": "AQigE59FdX7GigaFfQxeQP9ne3tVGBqMB5brL2aDFqPf", "decimals": 8, "virtualQuoteReserves": "5000000" },
+    { "symbol": "USD", "name": "Arch USD (aUSD)", "mint": "92Vu6DVnoeqgwexfVwDMseaZAe4PQzUQBBU2Rae1aDeS", "decimals": 6, "virtualQuoteReserves": "4500000000" }
+  ]
+}

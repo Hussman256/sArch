@@ -1,0 +1,12 @@
+[package]
+name = "archpad-math"
+description = "Integer math for the launchpad bonding curve, trade fees and graduated pool. No dependencies, no floats, no unsafe."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+
+[dev-dependencies]
+proptest = "1.5"

@@ -1,0 +1,24 @@
+{
+  "name": "archpad",
+  "private": true,
+  "packageManager": "pnpm@10.20.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "ops": "pnpm --filter @archpad/ops exec tsx src/cli.ts",
+    "keys:dev": "node scripts/program-keys.mjs dev",
+    "dev:indexer": "pnpm --filter @archpad/indexer start",
+    "dev:web": "pnpm --filter @archpad/web dev",
+    "test": "pnpm -r --if-present test",
+    "test:rust": "cargo test && cargo test --manifest-path programs/Cargo.toml",
+    "e2e": "pnpm --filter @archpad/e2e e2e",
+    "typecheck": "pnpm -r --if-present typecheck"
+  },
+  "devDependencies": {
+    "@noble/curves": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "@scure/base": "^2.4.0",
+    "tsx": "^4.23.15"
+  }
+}

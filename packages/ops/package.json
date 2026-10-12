@@ -1,0 +1,26 @@
+{
+  "name": "@archpad/ops",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Deploys the launchpad programs and sets a network up to use them.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "deploy": "tsx src/cli.ts deploy",
+    "bootstrap": "tsx src/cli.ts bootstrap",
+    "fund": "tsx src/cli.ts fund",
+    "status": "tsx src/cli.ts status",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@archpad/sdk": "workspace:*",
+    "@noble/hashes": "^2.4.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
+  }
+}

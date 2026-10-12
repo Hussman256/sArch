@@ -1,0 +1,7 @@
+{
+  "//": "Test assets `pnpm ops bootstrap` creates on a local chain. Their mint keys are derived from fixed public strings, so the addresses are the same on every machine.",
+  "quotes": [
+    { "symbol": "BTC", "name": "Test Bitcoin", "devMint": "tbtc", "decimals": 8, "virtualQuoteReserves": "5000000" },
+    { "symbol": "USD", "name": "Test Dollar", "devMint": "tusd", "decimals": 6, "virtualQuoteReserves": "4500000000" }
+  ]
+}

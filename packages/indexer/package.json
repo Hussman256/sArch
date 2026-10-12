@@ -1,0 +1,35 @@
+{
+  "name": "@archpad/indexer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Follows the chain, records what the launchpad programs did, and serves it to the app.",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@archpad/ops": "workspace:*",
+    "@archpad/sdk": "workspace:*",
+    "@electric-sql/pglite": "^0.5.8",
+    "@fastify/cors": "^11.3.1",
+    "@fastify/websocket": "^11.3.4",
+    "@noble/hashes": "^2.4.0",
+    "fastify": "^5.12.5",
+    "pg": "^8.23.1",
+    "ws": "^8.18.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/pg": "^8.23.1",
+    "@types/ws": "^8.18.2",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.0.3"
+  }
+}

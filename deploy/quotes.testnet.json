@@ -1,0 +1,7 @@
+{
+  "//": "Arch testnet quote assets after the 2026-10-07 reset. aUSD is named on chain. The aBTC mint is NOT confirmed: it is an 8-decimal mint with no freeze authority (checked 2026-10-11), picked because it is the only one that looks like a bridged bitcoin. Confirm it with the Arch team before bootstrapping testnet.",
+  "quotes": [
+    { "symbol": "BTC", "name": "Arch Bitcoin (aBTC)", "mint": "BsScw2NUzyPjZpWyPqHqvQpvNLspYUkZryi8YSvoxtc5", "decimals": 8, "virtualQuoteReserves": "5000000", "unconfirmed": true },
+    { "symbol": "USD", "name": "Arch USD (aUSD)", "mint": "J6Kc9nCCAqfLeQPmm6TAXQ8mNNSt2qk8EwwZ2kLJC76i", "decimals": 6, "virtualQuoteReserves": "4500000000" }
+  ]
+}

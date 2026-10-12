@@ -1,0 +1,26 @@
+{
+  "network": "localnet",
+  "rpcUrl": "http://127.0.0.1:9002",
+  "bitcoinNetwork": "regtest",
+  "programs": {
+    "config": "BqVGZikiBtbXP8QL9gXyLTYMqo67jvZd8rWYJMLZuq6D",
+    "launch": "EWKn3JFnKqCk551Zm4X2Voi1TiJJPLeERayDdtmUfhL3",
+    "fees": "HkXzgQvnLwWo3bHnRR1Akrf4eNFQpqx9MfewdYJWpN28",
+    "pool": "DJo7xBUa6Sb4WvaWAh643qeuz8UvmUEHGaNeCgmuALt3"
+  },
+  "quotes": [
+    {
+      "symbol": "BTC",
+      "name": "Test Bitcoin",
+      "mint": "GRKgN3siHUZAW6S1qZAkadZLngSf5NQDf7ubUTHAy5R6",
+      "decimals": 8
+    },
+    {
+      "symbol": "USD",
+      "name": "Test Dollar",
+      "mint": "3qYmQy1zb5n9kReLKqAW7is3rSSnGMNawJ4M234fMZsN",
+      "decimals": 6
+    }
+  ],
+  "startHeight": 0
+}

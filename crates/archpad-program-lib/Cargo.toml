@@ -1,0 +1,13 @@
+[package]
+name = "archpad-program-lib"
+description = "Helpers shared by the launchpad's on-chain programs: account checks, account creation, state storage and token transfers."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+arch_program = "=0.12.0"
+apl-token = { version = "=0.12.0", features = ["no-entrypoint"] }
+archpad-interface = { path = "../archpad-interface" }
+borsh = { version = "1.5", features = ["derive"] }

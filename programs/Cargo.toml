@@ -1,0 +1,35 @@
+# On-chain programs. Built for the Arch VM with `cargo build-sbf`.
+#
+# This workspace is separate from the host workspace at the repository root so
+# the programs get their own lockfile, resolved for the older Rust toolchain
+# that `cargo build-sbf` bundles.
+[workspace]
+resolver = "2"
+members = ["config", "fees", "launch", "pool"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+publish = false
+
+[workspace.dependencies]
+arch_program = "=0.12.0"
+apl-token = { version = "=0.12.0", features = ["no-entrypoint"] }
+apl-associated-token-account = { version = "=0.12.0", features = ["no-entrypoint"] }
+apl-token-metadata = { version = "=0.12.0", features = ["no-entrypoint"] }
+archpad-interface = { path = "../crates/archpad-interface" }
+archpad-math = { path = "../crates/archpad-math" }
+archpad-program-lib = { path = "../crates/archpad-program-lib" }
+borsh = { version = "1.5", features = ["derive"] }
+
+[workspace.lints.rust]
+# The on-chain target reports itself as `target_os = "solana"`, which host
+# toolchains do not list.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }
+
+[profile.release]
+overflow-checks = true
+lto = "fat"
+codegen-units = 1
+opt-level = "z"

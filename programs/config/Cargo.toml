@@ -1,0 +1,23 @@
+[package]
+name = "archpad-config"
+description = "Launchpad config program: fees, curve shape and quote assets, changed only when enough admins approve, and only after a delay."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+# Build as a library without the on-chain entrypoint.
+no-entrypoint = []
+
+[dependencies]
+arch_program = { workspace = true }
+archpad-interface = { workspace = true }
+archpad-program-lib = { workspace = true }
+borsh = { workspace = true }
+
+[lints]
+workspace = true

@@ -1,0 +1,20 @@
+# Host-side workspace: pure libraries and their tests.
+#
+# The on-chain programs live in their own workspace under `programs/`, with
+# their own lockfile, so `cargo build-sbf` (which bundles an older Rust
+# toolchain) resolves them in isolation from the host-side tooling here.
+[workspace]
+resolver = "2"
+members = ["crates/*"]
+exclude = ["programs"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+# cargo-build-sbf (Agave 3.1.x) compiles on-chain code with Rust 1.84, so
+# anything a program depends on must stay within that.
+rust-version = "1.84"
+
+[profile.release]
+overflow-checks = true

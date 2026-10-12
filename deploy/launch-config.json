@@ -1,0 +1,41 @@
+{
+  "//": "What new coins launch with, and who can change it. Read by `pnpm ops bootstrap` and `pnpm ops propose-config`. Amounts are base units, as strings.",
+  "admins": {
+    "//": "The keys that govern the config on each network and how many of them must approve a change. \"$authority\" stands for the authority key of the key set in use. Mainnet is left empty on purpose: fill in real keys before bootstrapping.",
+    "localnet": {
+      "members": [
+        "$authority"
+      ],
+      "threshold": 1
+    },
+    "testnet": {
+      "members": [
+        "$authority"
+      ],
+      "threshold": 1
+    },
+    "mainnet": {
+      "members": [],
+      "threshold": 2
+    }
+  },
+  "timelockSecs": {
+    "localnet": 0,
+    "testnet": 3600,
+    "mainnet": 86400
+  },
+  "launch": {
+    "platformFeeBps": 100,
+    "creatorFeeBps": 125,
+    "minCreatorBuyBps": 50,
+    "earlyWalletCapBps": 200,
+    "earlyWindowSecs": 10,
+    "tokenDecimals": 6,
+    "totalSupply": "1000000000000000",
+    "curveSupply": "793100000000000",
+    "virtualTokenReserves": "1073000000000000",
+    "poolLpFeeBps": 20,
+    "poolPlatformFeeBps": 5,
+    "poolCreatorFeeBps": 5
+  }
+}

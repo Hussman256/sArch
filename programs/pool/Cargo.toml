@@ -1,0 +1,25 @@
+[package]
+name = "archpad-pool"
+description = "Launchpad pool program: the constant-product pool a curve graduates into, with no way to withdraw its liquidity."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[features]
+# Build as a library without the on-chain entrypoint.
+no-entrypoint = []
+
+[dependencies]
+arch_program = { workspace = true }
+apl-token = { workspace = true }
+archpad-interface = { workspace = true }
+archpad-math = { workspace = true }
+archpad-program-lib = { workspace = true }
+borsh = { workspace = true }
+
+[lints]
+workspace = true

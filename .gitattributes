@@ -1,0 +1,7 @@
+# Keep LF everywhere: shell scripts run in Linux containers, and the golden
+# vector files are compared byte-for-byte.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.ico binary
+*.so binary
