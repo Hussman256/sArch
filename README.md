@@ -1,4 +1,4 @@
-# Archpad
+# sArch
 
 A meme coin launchpad for [Arch](https://arch.network), built from the PRD "Bitcoin-Native Meme Launchpad on Arch".
 
