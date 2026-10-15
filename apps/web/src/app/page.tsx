@@ -1,5 +1,5 @@
-import { Home } from "@/components/Home.tsx";
+import { Landing } from "@/components/Landing.tsx";
 
 export default function Page() {
-  return <Home />;
+  return <Landing />;
 }

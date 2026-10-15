@@ -15,12 +15,23 @@ import {
   TransactionFailedError,
 } from "@archpad/sdk";
 import { type NetworkInfo, type QuoteAsset, ApiError, api } from "./api.ts";
+import { type BtcPrice, type DisplayUnit, type Money, money } from "./money.ts";
 import { type ConnectedWallet, type WalletId, WALLETS, WalletError } from "./wallet/adapters.ts";
+
+/**
+ * Where the bitcoin price comes from, for showing amounts in dollars. It must
+ * answer in CoinGecko's simple-price shape. Set NEXT_PUBLIC_BTC_PRICE_URL to
+ * use another source, or to an empty string to switch dollar conversion off.
+ */
+const BTC_PRICE_URL =
+  process.env["NEXT_PUBLIC_BTC_PRICE_URL"] ??
+  "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd&include_24hr_change=true";
 
 export interface Toast {
   id: number;
   kind: "info" | "success" | "error";
   text: string;
+  sub?: string;
 }
 
 interface AppState {
@@ -49,8 +60,16 @@ interface AppState {
   send: (instructions: Instruction[], describe: { doing: string; done: string }) => Promise<ProcessedTransaction | null>;
 
   toasts: Toast[];
-  notify: (kind: Toast["kind"], text: string) => void;
+  notify: (kind: Toast["kind"], text: string, sub?: string) => void;
   dismiss: (id: number) => void;
+
+  /** Whether amounts are shown in bitcoin or dollars. */
+  unit: DisplayUnit;
+  setUnit: (unit: DisplayUnit) => void;
+  /** The bitcoin price, or null until it is known (or if it cannot be had). */
+  btcPrice: BtcPrice | null;
+  /** Formatters for the chosen unit. */
+  money: Money;
 }
 
 const AppContext = createContext<AppState | null>(null);
@@ -89,6 +108,7 @@ const sentence = (text: string): string => {
 };
 
 const LAST_WALLET = "archpad.last-wallet";
+const UNIT_KEY = "sarch.unit";
 
 export function AppProvider({ children }: { children: ReactNode }) {
   const [network, setNetwork] = useState<NetworkInfo | null>(null);
@@ -99,15 +119,61 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([]);
   const nextToast = useRef(1);
 
+  const [unit, setUnitState] = useState<DisplayUnit>("sats");
+  const [btcPrice, setBtcPrice] = useState<BtcPrice | null>(null);
+
   const dismiss = useCallback((id: number) => setToasts((list) => list.filter((toast) => toast.id !== id)), []);
   const notify = useCallback(
-    (kind: Toast["kind"], text: string) => {
+    (kind: Toast["kind"], text: string, sub?: string) => {
       const id = nextToast.current++;
-      setToasts((list) => [...list.slice(-3), { id, kind, text }]);
+      setToasts((list) => [...list.slice(-2), { id, kind, text, ...(sub ? { sub } : {}) }]);
       window.setTimeout(() => dismiss(id), kind === "error" ? 9_000 : 5_000);
     },
     [dismiss],
   );
+
+  useEffect(() => {
+    try {
+      if (window.localStorage.getItem(UNIT_KEY) === "usd") setUnitState("usd");
+    } catch {
+      // Storage can be unavailable; sats is the default.
+    }
+  }, []);
+  const setUnit = useCallback((next: DisplayUnit) => {
+    setUnitState(next);
+    try {
+      window.localStorage.setItem(UNIT_KEY, next);
+    } catch {
+      // Remembering the choice is a convenience only.
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!BTC_PRICE_URL) return;
+    let live = true;
+    const load = async () => {
+      try {
+        const response = await fetch(BTC_PRICE_URL, { referrerPolicy: "no-referrer" });
+        if (!response.ok) return;
+        const body = (await response.json()) as { bitcoin?: { usd?: unknown; usd_24h_change?: unknown } };
+        const usd = Number(body.bitcoin?.usd);
+        const change = Number(body.bitcoin?.usd_24h_change);
+        if (live && Number.isFinite(usd) && usd > 0) {
+          setBtcPrice({ usd, change24h: Number.isFinite(change) ? change : null });
+        }
+      } catch {
+        // Keep the last price; amounts fall back to their own asset without one.
+      }
+    };
+    void load();
+    const timer = window.setInterval(() => void load(), 60_000);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const formatters = useMemo(() => money(unit, btcPrice), [unit, btcPrice]);
 
   const refreshNetwork = useCallback(async () => {
     try {
@@ -176,10 +242,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         notify("error", "Connect a wallet first.");
         return null;
       }
-      notify("info", `${describe.doing} Confirm it in your wallet.`);
+      notify("info", "Confirm in your wallet", describe.doing);
       try {
         const processed = await client.sendAndConfirm(instructions, [wallet]);
-        notify("success", describe.done);
+        notify("success", describe.done, "Final on Arch");
         setActivity((count) => count + 1);
         return processed;
       } catch (error) {
@@ -205,6 +271,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     toasts,
     notify,
     dismiss,
+    unit,
+    setUnit,
+    btcPrice,
+    money: formatters,
   };
   return <AppContext.Provider value={state}>{children}</AppContext.Provider>;
 }

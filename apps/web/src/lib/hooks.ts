@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { type Address, associatedTokenAddress, decodeTokenAccount } from "@archpad/sdk";
-import { type StreamMessage, streamUrl } from "./api.ts";
+import { type Holders, type StreamMessage, api, streamUrl } from "./api.ts";
 import { useApp } from "./app.tsx";
 
 export interface Loaded<T> {
@@ -126,6 +126,67 @@ export function useBalances(mints: Address[]): { balances: Map<Address, bigint>;
     if (activity > 0) reload();
   }, [activity, reload]);
   return { balances: wallet ? (data ?? new Map()) : new Map(), reload };
+}
+
+/**
+ * Holders for several coins at once. Each lookup reads the chain, so results
+ * are kept for a minute and at most three are in flight at a time.
+ */
+const holdersCache = new Map<Address, { at: number; value: Holders }>();
+const HOLDERS_TTL = 60_000;
+const inFlight = new Map<Address, Promise<Holders | null>>();
+
+function fetchHolders(mint: Address): Promise<Holders | null> {
+  const cached = holdersCache.get(mint);
+  if (cached && Date.now() - cached.at < HOLDERS_TTL) return Promise.resolve(cached.value);
+  const pending = inFlight.get(mint);
+  if (pending) return pending;
+  const run = api.holders(mint).then(
+    (value) => {
+      holdersCache.set(mint, { at: Date.now(), value });
+      return value;
+    },
+    () => null,
+  );
+  const tracked = run.finally(() => inFlight.delete(mint));
+  inFlight.set(mint, tracked);
+  return tracked;
+}
+
+export function useHoldersFor(mints: Address[]): Map<Address, Holders> {
+  const [found, setFound] = useState<Map<Address, Holders>>(() => new Map());
+  const key = [...new Set(mints)].sort().join(",");
+
+  useEffect(() => {
+    if (!key) return;
+    let live = true;
+    const list = key.split(",");
+    const workers = 3;
+    let next = 0;
+    const work = async () => {
+      while (live && next < list.length) {
+        const mint = list[next++]!;
+        const holders = await fetchHolders(mint);
+        if (holders && live) setFound((map) => (map.get(mint) === holders ? map : new Map(map).set(mint, holders)));
+      }
+    };
+    let sweeping = false;
+    const sweep = async () => {
+      if (sweeping) return;
+      sweeping = true;
+      next = 0;
+      await Promise.all(Array.from({ length: workers }, work));
+      sweeping = false;
+    };
+    void sweep();
+    const timer = window.setInterval(() => void sweep(), HOLDERS_TTL);
+    return () => {
+      live = false;
+      window.clearInterval(timer);
+    };
+  }, [key]);
+
+  return found;
 }
 
 /** The current Unix time, updated every second, for countdowns and "5s ago". */

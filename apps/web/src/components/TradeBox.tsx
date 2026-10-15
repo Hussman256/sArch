@@ -2,28 +2,27 @@
 
 /**
  * Buying and selling a coin. Shows, before anything is signed, what the trade
- * returns, what it costs, how far it moves the price and the least it will
- * accept, then sends it with that limit attached.
+ * returns, what it costs, how far it moves the price, the least it will
+ * accept, and where it leaves the curve.
  */
 import { useEffect, useMemo, useState } from "react";
 import type { Position } from "@archpad/sdk";
 import type { CoinView, QuoteAsset } from "@/lib/api.ts";
 import { useApp } from "@/lib/app.tsx";
-import { formatBps, formatDuration, formatQuote, formatTokens, formatUnits, parseUnits } from "@/lib/format.ts";
+import { DOWN_COLOR, UP_COLOR } from "@/lib/design-system.ts";
+import { formatBps, formatDuration, formatTokens, formatUnits, parseUnits } from "@/lib/format.ts";
 import { useBalances, useNow } from "@/lib/hooks.ts";
+import { assetKind } from "@/lib/money.ts";
 import { type Market, type Side, maxUsefulBuy, previewTrade } from "@/lib/quote.ts";
+import { Icon } from "./icons.tsx";
+import { useWalletPicker } from "./Shell.tsx";
 
-const SLIPPAGE_CHOICES = [50, 100, 300];
+const SLIPPAGE = [50, 100, 200, 500];
 
-function Row({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
-  return (
-    <div className="flex justify-between gap-4 text-sm">
-      <dt className="text-dim" title={hint}>
-        {label}
-      </dt>
-      <dd className="tabular text-right">{children}</dd>
-    </div>
-  );
+export interface TradeRequest {
+  side: Side;
+  amountIn: bigint;
+  slippageBps: number;
 }
 
 export function TradeBox({
@@ -31,7 +30,8 @@ export function TradeBox({
   quote,
   market,
   position,
-  onTraded,
+  busy,
+  onTrade,
 }: {
   coin: CoinView;
   quote: QuoteAsset;
@@ -39,228 +39,240 @@ export function TradeBox({
   market: Market | null;
   /** The connected wallet's launch-window record for this coin, if it has one. */
   position: Position | null;
-  onTraded: () => void;
+  busy: boolean;
+  onTrade: (request: TradeRequest) => void;
 }) {
-  const { wallet, client, send } = useApp();
+  const { wallet, money } = useApp();
+  const openPicker = useWalletPicker();
   const now = useNow();
   const [side, setSide] = useState<Side>("buy");
   const [text, setText] = useState("");
-  const [slippageBps, setSlippageBps] = useState(100);
-  const [customSlippage, setCustomSlippage] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [slip, setSlip] = useState(200);
   const { balances } = useBalances([coin.quoteMint, coin.mint]);
+
+  const kind = assetKind(quote);
+  // Bitcoin is typed in sats, dollars in dollars, tokens in whole tokens.
+  const quoteInputDecimals = kind === "btc" ? 0 : quote.decimals;
+  const buy = side === "buy";
+  const inputDecimals = buy ? quoteInputDecimals : coin.tokenDecimals;
+  // A sat is the base unit of an 8-decimal bitcoin asset, so sats typed are base units.
+  const amountIn = parseUnits(text, inputDecimals);
+  const unitLabel = buy ? (kind === "btc" ? "sats" : kind === "usd" ? "USD" : quote.symbol) : coin.symbol;
 
   const quoteBalance = balances.get(coin.quoteMint) ?? 0n;
   const tokenBalance = balances.get(coin.mint) ?? 0n;
-  const inputDecimals = side === "buy" ? quote.decimals : coin.tokenDecimals;
-  const amountIn = parseUnits(text, inputDecimals);
+  const balance = buy ? quoteBalance : tokenBalance;
 
-  // While the launch window is open each wallet has a limited allowance.
   const windowOpen = market !== null && !market.pool && BigInt(now) < market.curve.earlyWindowEnd;
-  const windowAllowance = useMemo(() => {
+  const allowance = useMemo(() => {
     if (!windowOpen || !market) return undefined;
     const used = position?.windowBought ?? 0n;
     return used >= market.curve.earlyWalletCap ? 0n : market.curve.earlyWalletCap - used;
   }, [windowOpen, market, position]);
 
   const result = useMemo(() => {
-    if (!market) return null;
-    if (text.trim() === "") return null;
-    if (amountIn === null) return { ok: false as const, reason: `Enter a number with at most ${inputDecimals} decimals.` };
-    return previewTrade(market, side, amountIn, slippageBps, side === "buy" ? windowAllowance : undefined);
-  }, [market, side, text, amountIn, slippageBps, windowAllowance, inputDecimals]);
+    if (!market || text.trim() === "") return null;
+    if (amountIn === null) return { ok: false as const, reason: "Enter a plain number." };
+    return previewTrade(market, side, amountIn, slip, buy ? allowance : undefined);
+  }, [market, side, text, amountIn, slip, allowance, buy]);
+  const preview = result?.ok ? result.preview : null;
 
-  // Clear the box when switching between buying and selling: the unit changes.
   useEffect(() => setText(""), [side]);
 
-  const balance = side === "buy" ? quoteBalance : tokenBalance;
-  const shortOfFunds = wallet !== null && amountIn !== null && amountIn > balance;
+  const toText = (amount: bigint, decimals: number) => (amount === 0n ? "" : formatUnits(amount, decimals).replace(/,/g, ""));
 
-  const fill = (fraction: bigint) => {
-    if (!market) return;
-    let amount = (balance * fraction) / 100n;
-    if (side === "buy" && !market.pool) {
-      // No point offering more than the curve can sell this wallet.
-      const useful = maxUsefulBuy(market.curve, windowAllowance);
-      if (amount > useful) amount = useful;
-    }
-    setText(amount === 0n ? "" : formatUnits(amount, inputDecimals).replace(/,/g, ""));
-  };
-
-  const submit = async () => {
-    if (!wallet || !client || !market || !result?.ok || amountIn === null) return;
-    setBusy(true);
-    try {
-      // Plan against the freshest state there is. The slippage limit still
-      // guards against anything that lands in between.
-      const latest = await client.getCoin(coin.mint);
-      if (!latest) return;
-      const plan = latest.pool
-        ? client.planPoolSwap(wallet.address, latest.pool, side === "buy", amountIn, slippageBps)
-        : side === "buy"
-          ? client.planCurveBuy(wallet.address, latest.curve, amountIn, slippageBps)
-          : client.planCurveSell(wallet.address, latest.curve, amountIn, slippageBps);
-      const symbol = coin.symbol || "tokens";
-      const processed = await send(plan.instructions, {
-        doing: side === "buy" ? `Buying ${symbol}.` : `Selling ${symbol}.`,
-        done: side === "buy" ? `Bought ${symbol}.` : `Sold ${symbol}.`,
+  const presets: { label: string; on: boolean; pick: () => void }[] = buy
+    ? (kind === "usd" ? [10n, 50n, 100n, 500n] : [10_000n, 50_000n, 100_000n, 500_000n]).map((value) => {
+        const base = kind === "usd" ? value * 10n ** BigInt(quote.decimals) : value;
+        return {
+          label: kind === "usd" ? `$${value}` : `${Number(value) / 1000}K`,
+          on: amountIn === base,
+          pick: () => setText(toText(base, quoteInputDecimals)),
+        };
+      })
+    : [25n, 50n, 75n, 100n].map((percent) => {
+        const amount = (tokenBalance * percent) / 100n;
+        return {
+          label: percent === 100n ? "Max" : `${percent}%`,
+          on: amountIn !== null && amountIn > 0n && amountIn === amount,
+          pick: () => setText(toText(amount, coin.tokenDecimals)),
+        };
       });
-      if (processed) {
-        setText("");
-        onTraded();
-      }
-    } finally {
-      setBusy(false);
-    }
-  };
 
-  const preview = result?.ok ? result.preview : null;
-  const outAsset = side === "buy" ? coin.symbol || "tokens" : quote.symbol;
-  const formatOut = (amount: bigint) =>
-    side === "buy" ? `${formatUnits(amount, coin.tokenDecimals, 2)} ${outAsset}` : formatQuote(amount, quote);
+  // What it takes to buy every token left on the curve, once the launch window is over.
+  const fillNeed = buy && market && !market.pool && !windowOpen ? maxUsefulBuy(market.curve) : 0n;
+  const showFill = wallet !== null && fillNeed > 0n && fillNeed <= quoteBalance && amountIn !== fillNeed;
 
-  let action = side === "buy" ? `Buy ${coin.symbol}` : `Sell ${coin.symbol}`;
+  const color = buy ? UP_COLOR : DOWN_COLOR;
+  const impact = preview ? preview.priceImpactBps / 100 : 0;
+  const tokensText = (amount: bigint) => `${formatTokens(amount, coin.tokenDecimals)} ${coin.symbol}`;
+  const quoteText = (amount: bigint) => money.size(amount, quote);
+  const feeBps = market?.pool ? coin.poolFeeBps : coin.platformFeeBps + coin.creatorFeeBps;
+
+  let average: string | null = null;
+  if (preview) {
+    const quoteSide = buy ? preview.charged - preview.fee : preview.amountOut + preview.fee;
+    const tokenSide = buy ? preview.amountOut : preview.amountIn;
+    if (tokenSide > 0n) average = money.px(Number(quoteSide) / Number(tokenSide), coin.tokenDecimals, quote);
+  }
+  let curveAfter: string | null = null;
+  if (preview && market && !market.pool) {
+    const supply = market.curve.curveSupply;
+    const before = Number(((supply - market.curve.realToken) * 10_000n) / supply) / 100;
+    const left = buy ? market.curve.realToken - preview.amountOut : market.curve.realToken + preview.amountIn;
+    const after = Number(((supply - left) * 10_000n) / supply) / 100;
+    curveAfter = `${before.toFixed(1)}% → ${preview.graduates ? "graduates" : `${after.toFixed(1)}%`}`;
+  }
+
   let blocked: string | null = null;
-  if (!wallet) blocked = "Connect a wallet to trade";
-  else if (!market) blocked = "Loading…";
+  if (!market) blocked = "Loading…";
   else if (result && !result.ok) blocked = result.reason;
-  else if (shortOfFunds) blocked = `Not enough ${side === "buy" ? quote.symbol : coin.symbol}`;
-  if (busy) action = "Waiting for your wallet…";
+  else if (wallet && amountIn !== null && amountIn > balance) blocked = `Not enough ${buy ? quote.symbol : coin.symbol}`;
+  else if (!preview) blocked = "Enter an amount";
+  const cta = !wallet ? "Connect a wallet to trade" : busy ? "Waiting for your wallet…" : (blocked ?? `${buy ? "Buy" : "Sell"} ${coin.symbol}`);
+  const disabled = wallet !== null && (busy || blocked !== null);
 
   return (
-    <section className="panel p-4" aria-label="Trade">
-      <div className="grid grid-cols-2 gap-1 rounded-lg bg-ink p-1" role="tablist">
+    <section className="flex flex-col gap-3 rounded-[12px] border border-line bg-panel p-3.5 text-[13px]" aria-label="Trade">
+      <div className="grid grid-cols-2 gap-1 rounded-[10px] bg-deep p-[3px]" role="tablist">
         {(["buy", "sell"] as const).map((option) => (
           <button
             key={option}
             role="tab"
             aria-selected={side === option}
             onClick={() => setSide(option)}
-            className={`rounded-md py-2 text-sm font-semibold capitalize ${
-              side === option ? (option === "buy" ? "bg-up text-ink" : "bg-down text-ink") : "text-dim hover:text-text"
-            }`}
+            className="h-[34px] rounded-[8px] text-[13.5px] font-medium capitalize"
+            style={
+              side === option
+                ? { background: option === "buy" ? "rgba(102,222,142,0.14)" : "rgba(255,107,122,0.14)", color: option === "buy" ? UP_COLOR : DOWN_COLOR }
+                : { color: "#A3ACA3" }
+            }
           >
             {option}
           </button>
         ))}
       </div>
 
-      <div className="mt-4">
-        <div className="flex items-baseline justify-between">
-          <label className="label" htmlFor="trade-amount">
-            {side === "buy" ? `You pay (${quote.symbol})` : `You sell (${coin.symbol})`}
-          </label>
+      <div className="flex items-center justify-between text-[12px] whitespace-nowrap text-dim">
+        <span>{buy ? "You pay" : "You sell"}</span>
+        <div className="flex items-center gap-2.5">
           {wallet && (
-            <span className="tabular text-xs text-dim">
-              Balance:{" "}
-              {side === "buy" ? formatQuote(quoteBalance, quote) : `${formatTokens(tokenBalance, coin.tokenDecimals)} ${coin.symbol}`}
+            <span>
+              Balance <span className="tabular text-soft">{buy ? money.size(quoteBalance, quote) : tokensText(tokenBalance)}</span>
             </span>
           )}
+          <button
+            onClick={() => setSlip((value) => SLIPPAGE[(SLIPPAGE.indexOf(value) + 1) % SLIPPAGE.length]!)}
+            title="Slippage limit. The trade fails if the price moves more than this."
+            className="flex h-6 items-center gap-[5px] rounded-[6px] border border-[rgba(245,241,232,0.14)] px-[7px] text-[11.5px] text-mute hover:bg-[rgba(245,241,232,0.06)]"
+          >
+            <Icon name="sliders" size={12} />
+            Slippage {formatBps(slip)}
+          </button>
         </div>
-        <input
-          id="trade-amount"
-          className="field tabular text-lg"
-          inputMode="decimal"
-          autoComplete="off"
-          placeholder="0.0"
-          value={text}
-          onChange={(event) => setText(event.target.value)}
-        />
-        {wallet && (
-          <div className="mt-2 flex gap-2">
-            {[25n, 50n, 100n].map((percent) => (
-              <button key={percent} className="button-quiet flex-1 px-2 py-1 text-xs" onClick={() => fill(percent)}>
-                {percent === 100n ? "Max" : `${percent}%`}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
-      {windowOpen && market && side === "buy" && (
-        <p className="mt-3 rounded-lg border border-accent/50 px-3 py-2 text-xs text-accent">
-          Launch window: for the next {formatDuration(Math.max(1, Number(market.curve.earlyWindowEnd) - now))} each wallet can
-          buy at most {formatTokens(market.curve.earlyWalletCap, coin.tokenDecimals)} {coin.symbol}
-          {windowAllowance !== undefined && position
-            ? ` (you have ${formatTokens(windowAllowance, coin.tokenDecimals)} left)`
-            : ""}
-          . Everyone pays the same fee.
-        </p>
-      )}
+      <label className="flex h-14 cursor-text items-center gap-2.5 rounded-[10px] border border-[rgba(245,241,232,0.12)] bg-deep pr-2.5 pl-3.5 focus-within:border-[rgba(247,147,26,0.6)]">
+        <input
+          value={text}
+          onChange={(event) => setText(event.target.value.replace(/[^0-9.,]/g, ""))}
+          inputMode="decimal"
+          placeholder="0"
+          aria-label={buy ? `Amount to pay, in ${unitLabel}` : `Amount of ${coin.symbol} to sell`}
+          className="tabular min-w-0 flex-1 border-0 bg-transparent text-[24px] font-medium tracking-[-0.015em] text-text outline-none"
+        />
+        <span className="rounded-[7px] bg-[rgba(245,241,232,0.07)] px-[9px] py-[5px] text-[12px] font-medium text-mute">{unitLabel}</span>
+      </label>
 
-      <dl className="mt-4 space-y-2">
-        <Row label="You receive">{preview ? formatOut(preview.amountOut) : "–"}</Row>
-        <Row
-          label="Minimum received"
-          hint="If the price moves so far that you would get less than this, the trade is cancelled and you keep your funds."
-        >
-          {preview ? formatOut(preview.minOut) : "–"}
-        </Row>
-        <Row label="Price impact" hint="How much this trade moves the price against you, on top of the fee.">
-          {preview ? (
-            <span className={preview.priceImpactBps >= 500 ? "text-down" : preview.priceImpactBps >= 100 ? "text-accent" : ""}>
-              {formatBps(preview.priceImpactBps)}
-            </span>
-          ) : (
-            "–"
-          )}
-        </Row>
-        <Row
-          label={`Fee (${formatBps(market?.pool ? coin.poolFeeBps : coin.platformFeeBps + coin.creatorFeeBps)})`}
-          hint={
-            market?.pool
-              ? "Shared between the pool's liquidity, the platform and the coin's creator."
-              : `${formatBps(coin.platformFeeBps)} to the platform and ${formatBps(coin.creatorFeeBps)} to the coin's creator.`
-          }
-        >
-          {preview ? formatQuote(preview.fee, quote) : "–"}
-        </Row>
-        {preview?.graduates && (
-          <p className="rounded-lg border border-up/50 px-3 py-2 text-xs text-up">
-            This buy takes the last tokens on the curve and graduates the coin. You pay only for what is left:{" "}
-            {formatQuote(preview.charged, quote)}.
-          </p>
-        )}
-      </dl>
-
-      <div className="mt-4 flex items-center gap-2 text-xs text-dim">
-        <span title="How far the price may move before your trade is cancelled instead of filled.">Slippage limit</span>
-        {SLIPPAGE_CHOICES.map((bps) => (
+      <div className="grid grid-cols-4 gap-1.5">
+        {presets.map((preset) => (
           <button
-            key={bps}
-            onClick={() => {
-              setSlippageBps(bps);
-              setCustomSlippage("");
+            key={preset.label}
+            onClick={preset.pick}
+            className="tabular h-[30px] rounded-[8px] border text-[12px] font-medium hover:bg-[rgba(245,241,232,0.06)]"
+            style={{
+              borderColor: preset.on ? color : "rgba(245,241,232,0.14)",
+              background: preset.on ? (buy ? "rgba(102,222,142,0.1)" : "rgba(255,107,122,0.1)") : "transparent",
+              color: preset.on ? color : "#B9BFB4",
             }}
-            aria-pressed={slippageBps === bps && customSlippage === ""}
-            className={`rounded-md border px-2 py-1 ${
-              slippageBps === bps && customSlippage === "" ? "border-accent text-accent" : "border-line hover:border-dim"
-            }`}
           >
-            {formatBps(bps)}
+            {preset.label}
           </button>
         ))}
-        <input
-          className="field w-16 px-2 py-1 text-xs"
-          inputMode="decimal"
-          placeholder="%"
-          aria-label="Custom slippage limit, in percent"
-          value={customSlippage}
-          onChange={(event) => {
-            setCustomSlippage(event.target.value);
-            const percent = Number(event.target.value);
-            if (Number.isFinite(percent) && percent >= 0 && percent <= 50) setSlippageBps(Math.round(percent * 100));
-          }}
-        />
       </div>
 
+      {showFill && (
+        <button
+          onClick={() => setText(toText(fillNeed, quoteInputDecimals))}
+          className="tabular -mt-1 flex items-center gap-1.5 self-start py-0.5 text-[12px] text-amber hover:text-amber-pale"
+        >
+          <Icon name="grad" size={13} />
+          Fill the curve · {quoteText(fillNeed)}
+        </button>
+      )}
+
+      {windowOpen && market && buy && (
+        <div className="rounded-[8px] bg-[rgba(247,147,26,0.12)] px-2.5 py-[9px] text-[12px] leading-[1.45] text-amber-pale">
+          Launch window: for the next {formatDuration(Math.max(1, Number(market.curve.earlyWindowEnd) - now))} each wallet can buy at most{" "}
+          {tokensText(market.curve.earlyWalletCap)}
+          {allowance !== undefined && position ? ` (you have ${tokensText(allowance)} left)` : ""}.
+        </div>
+      )}
+
+      <div className="rule-top tabular flex flex-col gap-2 px-0.5 pt-3 pb-0.5 text-[12.5px] whitespace-nowrap">
+        <Row label="You receive">
+          <span className="font-medium">{preview ? (buy ? tokensText(preview.amountOut) : quoteText(preview.amountOut)) : "–"}</span>
+        </Row>
+        <Row label="Average price">{average ?? "–"}</Row>
+        <Row label="Price impact">
+          <span style={{ color: !preview ? undefined : impact < 1 ? "#D5D7CB" : impact < 5 ? "#F2C46D" : DOWN_COLOR }}>
+            {preview ? `${buy ? "+" : "−"}${impact.toFixed(2)}%` : "–"}
+          </span>
+        </Row>
+        <div className="flex flex-col gap-[3px]">
+          <Row label={`Fee ${formatBps(feeBps)}`}>{preview ? quoteText(preview.fee) : "–"}</Row>
+          {preview && (
+            <div className="self-end text-[11.5px] text-faint">
+              Creator {quoteText(preview.fees.creator)} · SARCH {quoteText(preview.fees.platform)}
+              {preview.fees.lp > 0n && <> · Pool {quoteText(preview.fees.lp)}</>}
+            </div>
+          )}
+        </div>
+        <Row label="Minimum received">{preview ? (buy ? tokensText(preview.minOut) : quoteText(preview.minOut)) : "–"}</Row>
+        {market && !market.pool ? <Row label="Curve after trade">{curveAfter ?? "–"}</Row> : <Row label="Venue">Arch Swap pool</Row>}
+      </div>
+
+      {preview?.graduates && (
+        <div className="flex gap-2 rounded-[8px] bg-[rgba(247,147,26,0.12)] px-2.5 py-[9px] text-[12px] leading-[1.45] text-amber-pale">
+          <Icon name="info" size={15} className="mt-px flex-none" />
+          <span>This buy fills the curve. Graduation runs in the same transaction, with no extra fee.</span>
+        </div>
+      )}
+
       <button
-        className={`button mt-4 w-full py-3 text-base ${side === "buy" ? "bg-up text-ink" : "bg-down text-ink"}`}
-        disabled={busy || blocked !== null || !preview}
-        onClick={submit}
+        onClick={() => {
+          if (!wallet) return openPicker();
+          if (!disabled && amountIn !== null) onTrade({ side, amountIn, slippageBps: slip });
+        }}
+        disabled={disabled}
+        className="h-11 rounded-[10px] border text-[14px] font-medium text-ground hover:brightness-[1.08] active:brightness-[0.92] disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:brightness-100"
+        style={{ background: buy ? "#F7931A" : DOWN_COLOR, borderColor: buy ? "#F7931A" : DOWN_COLOR }}
       >
-        {blocked ?? action}
+        {cta}
       </button>
+      <div className="flex items-center justify-center gap-1.5 text-[11.5px] text-faint">
+        <Icon name="boltOutline" size={12} />
+        You sign in your wallet. Final on Arch in about 0.3s.
+      </div>
     </section>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex justify-between gap-3">
+      <span className="text-dim">{label}</span>
+      <span>{children}</span>
+    </div>
   );
 }

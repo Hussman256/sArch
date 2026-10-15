@@ -36,6 +36,8 @@ export interface TradePreview {
   minOut: bigint;
   /** Total fee, in the quote asset. */
   fee: bigint;
+  /** The fee's parts: to the coin's creator, to the platform, and (on the pool) to liquidity. */
+  fees: { creator: bigint; platform: bigint; lp: bigint };
   /** For a buy, the quote actually taken. Less than `amountIn` when the buy takes the last tokens. */
   charged: bigint;
   /** How much worse the trade's average price is than the price before it, in basis points. */
@@ -93,6 +95,7 @@ export function previewTrade(
             amountOut: quote.tokensOut,
             minOut: applySlippage(quote.tokensOut, slippageBps),
             fee,
+            fees: { creator: quote.fees.creator, platform: quote.fees.platform, lp: quote.fees.lp },
             charged: quote.quoteCharged,
             // Tokens per quote, before and after. The fee is a cost, not price impact.
             priceImpactBps: impactBps(reserves.token, reserves.quote, quote.tokensOut, quote.quoteToPool),
@@ -111,6 +114,7 @@ export function previewTrade(
           amountOut: quote.quoteOut,
           minOut: applySlippage(quote.quoteOut, slippageBps),
           fee,
+          fees: { creator: quote.fees.creator, platform: quote.fees.platform, lp: quote.fees.lp },
           charged: 0n,
           priceImpactBps: impactBps(reserves.quote, reserves.token, quote.quoteFromPool, amountIn),
           graduates: false,
@@ -138,6 +142,7 @@ export function previewTrade(
           amountOut: quote.tokensOut,
           minOut: applySlippage(quote.tokensOut, slippageBps),
           fee: quote.fees.platform + quote.fees.creator,
+          fees: { creator: quote.fees.creator, platform: quote.fees.platform, lp: 0n },
           charged: quote.quoteCharged,
           priceImpactBps: impactBps(reserves.virtualToken, reserves.virtualQuote, quote.tokensOut, quote.quoteToCurve),
           graduates: quote.completesCurve,
@@ -154,6 +159,7 @@ export function previewTrade(
         amountOut: quote.quoteOut,
         minOut: applySlippage(quote.quoteOut, slippageBps),
         fee: quote.fees.platform + quote.fees.creator,
+        fees: { creator: quote.fees.creator, platform: quote.fees.platform, lp: 0n },
         charged: 0n,
         priceImpactBps: impactBps(reserves.virtualQuote, reserves.virtualToken, quote.quoteFromCurve, amountIn),
         graduates: false,

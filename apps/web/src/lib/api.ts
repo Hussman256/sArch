@@ -132,7 +132,8 @@ export const api = {
 
   holders: (mint: Address) => request<Holders>(`/v1/coins/${mint}/holders`),
 
-  feed: (limit = 30) => request<{ trades: FeedTrade[] }>(`/v1/trades${query({ limit })}`).then((body) => body.trades),
+  feed: (limit = 30, before?: string) =>
+    request<{ trades: FeedTrade[] }>(`/v1/trades${query({ limit, before })}`).then((body) => body.trades),
 
   wallet: (address: Address) => request<WalletProfile>(`/v1/wallets/${address}`),
 

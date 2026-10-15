@@ -1,68 +1,138 @@
 @import "tailwindcss";
 
-@theme {
-  --color-ink: #0b0d10;
-  --color-panel: #13171c;
-  --color-raised: #1a2027;
-  --color-line: #252c35;
-  --color-text: #e8ebef;
-  --color-dim: #8b95a3;
-  --color-accent: #f7931a;
-  --color-accent-strong: #ffa733;
-  --color-up: #2fbf71;
-  --color-down: #f0524f;
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+/* The SARCH palette: deep green ground, off-white type, Bitcoin orange for actions and progress. */
+@theme {
+  --color-ground: #0B2B22;
+  --color-outer: #061A14;
+  --color-panel: #0F342A;
+  --color-deep: #08231C;
+  --color-raised: #143D32;
+  --color-bar: #072019;
+  --color-text: #F5F1E8;
+  --color-soft: #D5D7CB;
+  --color-mute: #B9BFB4;
+  --color-dim: #A3ACA3;
+  --color-faint: #8E9B93;
+  --color-ghost: #5E7068;
+  --color-ink: #4F5F57;
+  --color-orange: #F7931A;
+  --color-orange-hover: #FFA53D;
+  --color-orange-active: #E0830F;
+  --color-amber: #FFB257;
+  --color-amber-pale: #FFC98A;
+  --color-up: #66DE8E;
+  --color-down: #FF6B7A;
+  --color-warn: #F2C46D;
+  --color-line: rgba(245, 241, 232, 0.08);
+
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 html {
-  background: var(--color-ink);
+  background: var(--color-ground);
   color: var(--color-text);
   color-scheme: dark;
 }
 
 body {
   min-height: 100vh;
+  margin: 0;
+  background: var(--color-ground);
   font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Numbers that sit in columns or change in place keep the same width. */
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+::selection {
+  background: rgba(247, 147, 26, 0.3);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-orange);
+  outline-offset: 2px;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-faint);
+}
+
+button {
+  font-family: inherit;
+}
+
 .tabular {
   font-variant-numeric: tabular-nums;
 }
 
-input[type="number"]::-webkit-outer-spin-button,
-input[type="number"]::-webkit-inner-spin-button {
-  appearance: none;
-  margin: 0;
+.pretty {
+  text-wrap: pretty;
 }
 
-:focus-visible {
-  outline: 2px solid var(--color-accent);
-  outline-offset: 2px;
+.balance {
+  text-wrap: balance;
+}
+
+/* Rules fade to transparent at both ends instead of stopping cleanly. */
+.rule-top {
+  background: linear-gradient(to right, transparent, rgba(245, 241, 232, 0.1) 48px, rgba(245, 241, 232, 0.1) calc(100% - 48px), transparent)
+    top / 100% 1px no-repeat;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.fade-right {
+  mask-image: linear-gradient(to right, #000 80%, transparent);
+}
+
+input[type="range"] {
+  accent-color: var(--color-orange);
+  cursor: pointer;
 }
 
 @layer components {
-  .panel {
-    @apply rounded-xl border border-line bg-panel;
+  .card {
+    @apply rounded-[12px] border border-line bg-panel;
   }
-  .button,
-  .button-primary,
-  .button-quiet {
-    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50;
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-orange bg-orange font-medium text-ground transition-colors hover:border-orange-hover hover:bg-orange-hover active:bg-orange-active disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-orange;
   }
-  .button-primary {
-    @apply bg-accent text-ink hover:bg-accent-strong;
+  .btn-outline {
+    @apply inline-flex items-center justify-center gap-1.5 rounded-[10px] border border-[rgba(245,241,232,0.2)] bg-transparent font-medium text-text transition-colors hover:bg-[rgba(245,241,232,0.06)] disabled:cursor-not-allowed disabled:opacity-50;
   }
-  .button-quiet {
-    @apply border border-line bg-raised text-text hover:border-dim;
+  .seg {
+    @apply flex gap-0.5 rounded-[8px] border border-[rgba(245,241,232,0.12)] p-0.5;
   }
-  .field {
-    @apply w-full rounded-lg border border-line bg-ink px-3 py-2 text-sm text-text placeholder:text-dim focus:border-accent focus:outline-none;
+  .seg-on {
+    @apply bg-text text-ground;
   }
-  .label {
-    @apply mb-1 block text-xs font-medium tracking-wide text-dim uppercase;
+  .seg-off {
+    @apply bg-transparent text-dim hover:text-text;
+  }
+  .kicker {
+    @apply text-[10.5px] font-medium tracking-[0.08em] text-faint uppercase;
+  }
+  .input {
+    @apply rounded-[8px] border border-[rgba(245,241,232,0.14)] bg-deep text-[14px] text-text outline-none focus:border-orange;
   }
 }

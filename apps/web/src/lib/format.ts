@@ -127,6 +127,46 @@ export function formatBps(bps: number): string {
   return `${(bps / 100).toFixed(2).replace(/\.?0+$/, "")}%`;
 }
 
+const SUBSCRIPTS = "₀₁₂₃₄₅₆₇₈₉";
+
+/**
+ * A small positive number the way trading screens write it: leading zeros
+ * after the point collapse to a subscript count, so 0.0000412 is "0.0₄412".
+ */
+export function small(value: number, sig = 3): string {
+  if (!Number.isFinite(value) || value <= 0) return "0";
+  if (value >= 100) return Math.round(value).toLocaleString("en-US");
+  if (value >= 1) return value.toFixed(2);
+  const zeros = Math.floor(-Math.log10(value));
+  if (zeros < 4) return value.toFixed(zeros + sig);
+  const digits = String(Math.round(value * 10 ** (zeros + sig))).slice(0, sig);
+  return `0.0${String(zeros)
+    .split("")
+    .map((d) => SUBSCRIPTS[Number(d)])
+    .join("")}${digits}`;
+}
+
+/** 1.2K, 3.45M, with a fixed number of decimals and a real minus sign. */
+export function compactFixed(value: number, decimals = 1): string {
+  const abs = Math.abs(value);
+  const sign = value < 0 ? "−" : "";
+  if (abs >= 1e9) return `${sign}${(abs / 1e9).toFixed(decimals)}B`;
+  if (abs >= 1e6) return `${sign}${(abs / 1e6).toFixed(decimals)}M`;
+  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(decimals)}K`;
+  return `${sign}${abs < 10 ? abs.toFixed(2) : String(Math.round(abs))}`;
+}
+
+/** A whole number with thousands separators. */
+export function int(value: number): string {
+  return Math.round(value).toLocaleString("en-US");
+}
+
+/** A signed percentage: "+12.4%", "−3.1%". */
+export function pct(value: number, decimals?: number): string {
+  const abs = Math.abs(value);
+  return `${value >= 0 ? "+" : "−"}${abs.toFixed(decimals ?? (abs >= 100 ? 0 : 1))}%`;
+}
+
 /** A length of time in words: "10 seconds", "1 hour", "1 day". */
 export function formatDuration(seconds: number): string {
   const unit = (count: number, name: string) => `${count} ${name}${count === 1 ? "" : "s"}`;

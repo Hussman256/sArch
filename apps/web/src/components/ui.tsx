@@ -2,26 +2,42 @@
 
 /** Small pieces used all over the app. */
 import Link from "next/link";
-import { useState, type ReactNode } from "react";
-import type { CoinView, QuoteAsset } from "@/lib/api.ts";
-import { compact, formatPrice, formatQuote, shortAddress, timeAgo } from "@/lib/format.ts";
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { CoinView } from "@/lib/api.ts";
+import { getCoinGlyph, ident } from "@/lib/design-system.ts";
+import { shortAddress } from "@/lib/format.ts";
 
-/** A coin's picture, or its initial when the picture is missing or will not load. */
-export function CoinImage({ coin, size = 48 }: { coin: Pick<CoinView, "image" | "symbol" | "name">; size?: number }) {
+/**
+ * A coin's picture in a rounded tile, or a glyph on a colour picked from its
+ * ticker when it has no usable picture.
+ */
+export function CoinImage({
+  coin,
+  size = 48,
+  radius,
+  className = "",
+  style,
+}: {
+  coin: Pick<CoinView, "image" | "symbol" | "name">;
+  size?: number;
+  radius?: number;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const [broken, setBroken] = useState(false);
-  // Only links that are plainly web addresses are loaded; anything else a
-  // creator managed to put on chain is shown as the fallback.
+  // Only plain web links are loaded; anything else a creator put on chain gets the fallback.
   const usable = /^https?:\/\//i.test(coin.image) && !broken;
-  const style = { width: size, height: size };
+  const r = radius ?? Math.round(size * 0.26);
+  const box: CSSProperties = { width: size, height: size, borderRadius: r, ...style };
   if (!usable) {
+    const { glyph, bg } = getCoinGlyph(coin.symbol, coin.name);
+    const icon = Math.round(size * 0.59);
     return (
-      <div
-        style={style}
-        className="flex shrink-0 items-center justify-center rounded-lg bg-raised font-bold text-dim"
-        aria-hidden="true"
-      >
-        {(coin.symbol || coin.name || "?").slice(0, 1).toUpperCase()}
-      </div>
+      <span style={{ ...box, background: bg }} className={`grid flex-none place-items-center text-panel ${className}`} aria-hidden="true">
+        <svg viewBox="0 0 256 256" width={icon} height={icon} fill="currentColor">
+          <path d={glyph} />
+        </svg>
+      </span>
     );
   }
   return (
@@ -29,106 +45,142 @@ export function CoinImage({ coin, size = 48 }: { coin: Pick<CoinView, "image" | 
     <img
       src={coin.image}
       alt=""
-      style={style}
+      style={box}
       loading="lazy"
       referrerPolicy="no-referrer"
-      className="shrink-0 rounded-lg bg-raised object-cover"
+      className={`flex-none bg-raised object-cover ${className}`}
       onError={() => setBroken(true)}
     />
   );
 }
 
-/** How far a curve is toward graduating. */
-export function Progress({ bps, graduated }: { bps: number; graduated: boolean }) {
-  const percent = Math.min(100, bps / 100);
+/** A thin progress track with an orange fill. */
+export function Bar({
+  percent,
+  height = 4,
+  color = "#F7931A",
+  className = "",
+  label,
+}: {
+  percent: number;
+  height?: number;
+  color?: string;
+  className?: string;
+  label?: string;
+}) {
+  const value = Math.max(0, Math.min(100, percent));
   return (
-    <div
-      className="h-2 w-full overflow-hidden rounded-full bg-raised"
+    <span
+      className={`block overflow-hidden bg-[rgba(245,241,232,0.08)] ${className}`}
+      style={{ height, borderRadius: height / 2 }}
       role="progressbar"
       aria-valuemin={0}
       aria-valuemax={100}
-      aria-valuenow={Math.round(percent)}
-      aria-label={graduated ? "Graduated" : "Progress to graduation"}
+      aria-valuenow={Math.round(value)}
+      aria-label={label ?? "Progress to graduation"}
     >
-      <div
-        className={`h-full rounded-full ${graduated ? "bg-up" : "bg-accent"}`}
-        style={{ width: `${Math.max(percent, percent > 0 ? 2 : 0)}%` }}
-      />
-    </div>
-  );
-}
-
-export function Address({ value, href }: { value: string; href?: string }) {
-  const text = <span className="font-mono text-xs">{shortAddress(value)}</span>;
-  return href ? (
-    <Link href={href} className="text-dim hover:text-accent" title={value}>
-      {text}
-    </Link>
-  ) : (
-    <span className="text-dim" title={value}>
-      {text}
+      <span className="block h-full transition-[width] duration-500 ease-out" style={{ width: `${value}%`, background: color, borderRadius: height / 2 }} />
     </span>
   );
 }
 
-/** A coin in a list: who it is, what it is worth, how far along it is. */
-export function CoinCard({ coin, quote, now }: { coin: CoinView; quote: QuoteAsset | undefined; now: number }) {
-  const graduated = coin.status === "graduated";
+/** A wallet's round avatar. */
+export function Avatar({ address, size = 18, me = false }: { address: string; size?: number; me?: boolean }) {
   return (
-    <Link
-      href={`/coin/${coin.mint}`}
-      className="panel flex flex-col gap-3 p-4 transition-colors hover:border-accent"
-    >
-      <div className="flex items-start gap-3">
-        <CoinImage coin={coin} size={56} />
-        <div className="min-w-0 flex-1">
-          <div className="flex items-baseline gap-2">
-            <span className="truncate font-semibold">{coin.name || "Unnamed"}</span>
-            <span className="shrink-0 text-xs text-dim">{coin.symbol}</span>
-          </div>
-          <p className="mt-0.5 line-clamp-2 text-xs text-dim">{coin.description || "No description."}</p>
-        </div>
-      </div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-dim">
-          Market cap{" "}
-          <span className="tabular font-semibold text-text">
-            {quote ? formatQuote(coin.marketCapQuote, quote, { compact: true }) : compact(Number(coin.marketCapQuote))}
-          </span>
-        </span>
-        <span className="text-dim">{timeAgo(coin.createdAt, now)} old</span>
-      </div>
-      <div>
-        <Progress bps={coin.progressBps} graduated={graduated} />
-        <div className="mt-1 flex justify-between text-[11px] text-dim">
-          <span>{graduated ? "Graduated: trading on the pool" : `${(coin.progressBps / 100).toFixed(1)}% to graduation`}</span>
-          <span>{coin.tradeCount} trades</span>
-        </div>
-      </div>
+    <span
+      className="flex-none rounded-full"
+      style={{ width: size, height: size, background: me ? "linear-gradient(135deg,#FFB257,#7A4A0E)" : ident(address) }}
+      aria-hidden="true"
+    />
+  );
+}
+
+export function WalletLink({ address, className = "" }: { address: string; className?: string }) {
+  return (
+    <Link href={`/profile/${address}`} className={`tabular hover:text-amber-pale ${className}`} title={address}>
+      {shortAddress(address)}
     </Link>
   );
 }
 
-export function Price({ coin, quote }: { coin: Pick<CoinView, "price" | "tokenDecimals">; quote: QuoteAsset | undefined }) {
-  return <span className="tabular">{quote ? formatPrice(coin.price, coin.tokenDecimals, quote) : "…"}</span>;
-}
-
 /** What to show in place of content that has not arrived, is empty, or failed. */
-export function Notice({ children, tone = "dim" }: { children: ReactNode; tone?: "dim" | "error" }) {
+export function Notice({ children, tone = "dim", className = "" }: { children: ReactNode; tone?: "dim" | "error"; className?: string }) {
   return (
-    <div className={`panel px-4 py-8 text-center text-sm ${tone === "error" ? "text-down" : "text-dim"}`}>{children}</div>
+    <div className={`card px-4 py-8 text-center text-[13px] ${tone === "error" ? "text-down" : "text-faint"} ${className}`}>{children}</div>
   );
 }
 
-export function Skeleton({ className = "" }: { className?: string }) {
-  return <div className={`animate-pulse rounded-lg bg-raised ${className}`} aria-hidden="true" />;
+export function Skeleton({ className = "", style }: { className?: string; style?: CSSProperties }) {
+  return <div className={`animate-pulse rounded-[10px] bg-[rgba(245,241,232,0.05)] ${className}`} style={style} aria-hidden="true" />;
 }
 
-export function Stat({ label, children }: { label: string; children: ReactNode }) {
+/** A dimmed backdrop with a dialog card, closed with Escape or a click outside. */
+export function Modal({
+  label,
+  onClose,
+  children,
+  width = 420,
+  top = 150,
+  className = "",
+  dim = 0.66,
+}: {
+  label: string;
+  onClose?: (() => void) | undefined;
+  children: ReactNode;
+  width?: number;
+  top?: number;
+  className?: string;
+  dim?: number;
+}) {
+  const card = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && onClose?.();
+    window.addEventListener("keydown", onKey);
+    card.current?.querySelector<HTMLElement>("button:not([disabled])")?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   return (
-    <div>
-      <div className="text-[11px] tracking-wide text-dim uppercase">{label}</div>
-      <div className="tabular mt-0.5 text-sm font-semibold">{children}</div>
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto px-4 pb-10"
+      style={{ paddingTop: `min(${top}px, 12vh)`, background: `rgba(4,20,15,${dim})` }}
+      onMouseDown={(event) => event.target === event.currentTarget && onClose?.()}
+    >
+      <div
+        ref={card}
+        role="dialog"
+        aria-modal="true"
+        aria-label={label}
+        className={`flex max-w-full flex-col ${className}`}
+        style={{ width }}
+      >
+        {children}
+      </div>
     </div>
   );
+}
+
+/** A label and value on one line, as in the receipts and quote breakdowns. */
+export function Line({ label, children, className = "" }: { label: ReactNode; children: ReactNode; className?: string }) {
+  return (
+    <div className={`flex justify-between gap-2.5 ${className}`}>
+      <span className="text-dim">{label}</span>
+      <span className="text-right">{children}</span>
+    </div>
+  );
+}
+
+/** Copies text and briefly says so. */
+export function useCopy(): [string | null, (key: string, text: string) => void] {
+  const [copied, setCopied] = useState<string | null>(null);
+  const timer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(timer.current), []);
+  return [
+    copied,
+    (key, text) => {
+      void navigator.clipboard?.writeText(text).catch(() => undefined);
+      setCopied(key);
+      window.clearTimeout(timer.current);
+      timer.current = window.setTimeout(() => setCopied(null), 1_800);
+    },
+  ];
 }
