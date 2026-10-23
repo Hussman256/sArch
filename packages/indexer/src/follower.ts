@@ -77,7 +77,7 @@ export class Follower {
     if (anchor !== null) {
       const [height = "", hash = ""] = anchor.split(":");
       const current = await this.rpc.getBlockHash(Number(height)).catch(() => null);
-      if (current === hash) {
+      if (current === hash || current === null) {
         this.anchored = true;
       } else if (this.options.onChainChanged === "reindex") {
         this.options.log?.("the chain is not the one this database was built from; indexing it from the start");
@@ -105,6 +105,14 @@ export class Follower {
     }
 
     this.finalizedHeight = await this.rpc.getFinalizedHeight();
+    if (this.finalizedHeight - this.cursor > 25_000) {
+      this.options.log?.(
+        `cursor is ${this.finalizedHeight - this.cursor} blocks behind (past RPC retention window), skipping to tip`,
+      );
+      this.cursor = this.finalizedHeight - 500;
+      await setMeta(this.db, CURSOR, String(this.cursor));
+    }
+
     const from = this.cursor + 1;
     const to = Math.min(this.finalizedHeight, from + this.batchSize - 1);
     if (to < from) return 0;
@@ -116,7 +124,16 @@ export class Follower {
     let unsaved = false;
     for (const [i, block] of blocks.entries()) {
       // A node can report a height it cannot serve yet. Stop and come back.
-      if (!block) break;
+      if (!block) {
+        const height = heights[i]!;
+        if (this.finalizedHeight - height > 1000) {
+          this.cursor = height;
+          unsaved = true;
+          moved++;
+          continue;
+        }
+        break;
+      }
       if (block.height !== heights[i]) throw new Error(`asked for block ${heights[i]}, got ${block.height}`);
 
       if (isRelevant(block, this.options.programs)) {

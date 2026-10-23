@@ -6,10 +6,27 @@
  * app uses are let through, and the one expensive method only for the one
  * program the app needs it for.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { addressToBytes } from "@archpad/sdk";
 import { API_URL } from "@/lib/api.ts";
 
-const RPC_URL = process.env["ARCH_RPC_URL"] ?? "http://127.0.0.1:9002";
+function defaultRpcUrl(): string {
+  if (process.env["ARCH_RPC_URL"]) return process.env["ARCH_RPC_URL"];
+  try {
+    const dir = dirname(fileURLToPath(import.meta.url));
+    const repoRoot = join(dir, "..", "..", "..", "..", "..");
+    const testnetFile = join(repoRoot, "deploy", "testnet.json");
+    if (existsSync(testnetFile)) {
+      const deploy = JSON.parse(readFileSync(testnetFile, "utf8")) as { rpcUrl?: string };
+      if (deploy.rpcUrl) return deploy.rpcUrl;
+    }
+  } catch {}
+  return "http://127.0.0.1:9002";
+}
+
+const RPC_URL = defaultRpcUrl();
 const MAX_BODY_BYTES = 256 * 1024;
 const MAX_BATCH = 50;
 

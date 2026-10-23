@@ -170,16 +170,22 @@ function WalletButton() {
               <span className="h-1.5 w-1.5 rounded-full bg-up" /> Connected
             </span>
           </div>
-          <button
-            className="mt-1.5 block w-full text-left font-mono text-[11.5px] break-all text-soft hover:text-amber"
-            title="Copy address"
-            onClick={() => {
-              void navigator.clipboard.writeText(wallet.address);
-              notify("info", "Address copied.");
-            }}
-          >
-            {wallet.address}
-          </button>
+          <div className="mt-2 flex items-center justify-between gap-2 rounded-[8px] border border-[rgba(245,241,232,0.08)] bg-deep px-2.5 py-1.5">
+            <span className="font-mono text-[12px] text-soft" title={wallet.address}>
+              {shortAddress(wallet.address, 10)}
+            </span>
+            <button
+              className="flex items-center gap-1 rounded-[4px] px-1.5 py-0.5 text-[11px] font-medium text-dim hover:bg-[rgba(245,241,232,0.08)] hover:text-text transition-colors"
+              title="Copy address"
+              onClick={() => {
+                void navigator.clipboard.writeText(wallet.address);
+                notify("info", "Address copied.");
+              }}
+            >
+              <Icon name="copy" size={12} />
+              <span>Copy</span>
+            </button>
+          </div>
           <div className="rule-top mt-3 flex flex-col gap-1.5 pt-3 text-[12.5px]">
             {quotes.map((quote) => (
               <div key={quote.mint} className="flex justify-between">

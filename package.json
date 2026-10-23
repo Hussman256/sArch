@@ -20,5 +20,8 @@
     "@noble/hashes": "^2.4.0",
     "@scure/base": "^2.4.0",
     "tsx": "^4.23.15"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
   }
 }

@@ -1,8 +1,8 @@
 {
-  "keySet": "dev",
-  "config": "BqVGZikiBtbXP8QL9gXyLTYMqo67jvZd8rWYJMLZuq6D",
-  "launch": "EWKn3JFnKqCk551Zm4X2Voi1TiJJPLeERayDdtmUfhL3",
-  "fees": "HkXzgQvnLwWo3bHnRR1Akrf4eNFQpqx9MfewdYJWpN28",
-  "pool": "DJo7xBUa6Sb4WvaWAh643qeuz8UvmUEHGaNeCgmuALt3",
-  "initialAuthority": "9ATCeApZvMPoPkU5zjE7VR7x9jMK14yTUAWSx3uiSzVq"
+  "keySet": "testnet",
+  "config": "4imFV6b3eScgkb8bEY4SZcFjuZXNcgjaWC8egoNSxaJu",
+  "launch": "4ELFjrDZk8q1c2VyJ1RRKAryBCqmU1gTP2of329xz8wQ",
+  "fees": "5ZbAqMMUGzjD7KGLYEiC8aoaixcqNBFQRRrF5MnLUojW",
+  "pool": "Ez7DfUYH7tr1DskR585fV7NKkA8HbL9nfhdHthV4X1s8",
+  "initialAuthority": "AQeBdHj8XpgofbfuYtLmjBTWtgi6NdubR3M4w5mrJQQE"
 }

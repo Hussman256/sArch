@@ -116,11 +116,16 @@ const query = (params: Record<string, string | number | undefined>): string => {
   return text ? `?${text}` : "";
 };
 
+const HIDDEN_MINTS = new Set([
+  "8wYMr72kKBejLA58pWyfcK7H9639PjudQTsz8VwqStU5", // duplicate Cactus Hands
+  "4CbZAkwe6Z4E22wwbxoUKLshF3aLN8RK4wNEvFCY1tS9", // duplicate Archpad Genesis
+]);
+
 export const api = {
   network: () => request<NetworkInfo>("/v1/network"),
 
   coins: (params: { sort?: CoinSort; quote?: Address; creator?: Address; q?: string; limit?: number; offset?: number } = {}) =>
-    request<{ coins: CoinView[] }>(`/v1/coins${query(params)}`).then((body) => body.coins),
+    request<{ coins: CoinView[] }>(`/v1/coins${query(params)}`).then((body) => body.coins.filter((c) => !HIDDEN_MINTS.has(c.mint))),
 
   coin: (mint: Address) => request<{ coin: CoinDetail }>(`/v1/coins/${mint}`).then((body) => body.coin),
 

@@ -41,7 +41,7 @@ export const DEFAULT_PROGRAM_IDS: ProgramIds = {
 export const INITIAL_AUTHORITY: Address = PROGRAM_IDS.initialAuthority;
 
 /** True when {@link DEFAULT_PROGRAM_IDS} are the public development keys. */
-export const IS_DEV_KEY_SET: boolean = PROGRAM_IDS.keySet === "dev";
+export const IS_DEV_KEY_SET: boolean = (PROGRAM_IDS.keySet as string) === "dev";
 
 const BUMP = 255;
 const text = (value: string) => new TextEncoder().encode(value);

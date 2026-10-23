@@ -32,6 +32,7 @@ import {
   listTrades,
 } from "./queries.ts";
 import { MAX_IMAGE_BYTES, UploadError, type UploadStore } from "./uploads.ts";
+import { ensureCoin } from "./ingest.ts";
 
 /** A quote asset as published by the deployment. */
 export interface QuoteInfo {
@@ -196,18 +197,41 @@ export async function buildApi(options: ApiOptions): Promise<Api> {
             config.active.launch.poolPlatformFeeBps +
             config.active.launch.poolCreatorFeeBps,
         },
-        quotes: configuredQuotes(config.active).map((quote) => ({
-          mint: quote.mint,
-          symbol: known.get(quote.mint)?.symbol ?? quote.mint.slice(0, 4),
-          name: known.get(quote.mint)?.name ?? quote.mint,
-          decimals: known.get(quote.mint)?.decimals ?? 0,
-          paused: (config.pausedQuotes & (1 << quote.index)) !== 0,
-          virtualQuoteReserves: quote.virtualQuoteReserves.toString(),
-          graduationQuote: graduationQuote(launchCurveParams(config.active.launch, quote)).toString(),
-        })),
+        quotes: (() => {
+          const onChain = configuredQuotes(config.active);
+          const onChainMints = new Set(onChain.map((q) => q.mint));
+          const list = onChain.map((quote) => ({
+            mint: quote.mint,
+            symbol: known.get(quote.mint)?.symbol ?? quote.mint.slice(0, 4),
+            name: known.get(quote.mint)?.name ?? quote.mint,
+            decimals: known.get(quote.mint)?.decimals ?? 0,
+            paused: (config.pausedQuotes & (1 << quote.index)) !== 0,
+            virtualQuoteReserves: quote.virtualQuoteReserves.toString(),
+            graduationQuote: graduationQuote(launchCurveParams(config.active.launch, quote)).toString(),
+          }));
+          for (const extra of options.quotes) {
+            if (!onChainMints.has(extra.mint)) {
+              list.push({
+                mint: extra.mint,
+                symbol: extra.symbol,
+                name: extra.name,
+                decimals: extra.decimals,
+                paused: true,
+                virtualQuoteReserves: "4500000000",
+                graduationQuote: "12750803859",
+              });
+            }
+          }
+          return list;
+        })(),
       }),
     };
   });
+
+  const HIDDEN_MINTS = new Set([
+    "8wYMr72kKBejLA58pWyfcK7H9639PjudQTsz8VwqStU5", // duplicate Cactus Hands
+    "4CbZAkwe6Z4E22wwbxoUKLshF3aLN8RK4wNEvFCY1tS9", // duplicate Archpad Genesis
+  ]);
 
   app.get("/v1/coins", async (request) => {
     const query = request.query as Record<string, string | undefined>;
@@ -218,21 +242,33 @@ export async function buildApi(options: ApiOptions): Promise<Api> {
     const limit = numberParam(query["limit"], "limit");
     const offset = numberParam(query["offset"], "offset");
     const search = query["q"]?.slice(0, 64);
+    const coins = await listCoins(db, {
+      sort,
+      ...(quoteMint && { quoteMint }),
+      ...(creator && { creator }),
+      ...(search && { search }),
+      ...(limit !== undefined && { limit }),
+      ...(offset !== undefined && { offset }),
+    });
     return {
-      coins: await listCoins(db, {
-        sort,
-        ...(quoteMint && { quoteMint }),
-        ...(creator && { creator }),
-        ...(search && { search }),
-        ...(limit !== undefined && { limit }),
-        ...(offset !== undefined && { offset }),
-      }),
+      coins: coins.filter((coin) => !HIDDEN_MINTS.has(coin.mint)),
     };
   });
 
   const coinOr404 = async (request: FastifyRequest): Promise<CoinView> => {
     const mint = addressParam((request.params as { mint: string }).mint, "mint");
-    const coin = await getCoin(db, mint);
+    let coin = await getCoin(db, mint);
+    if (!coin) {
+      try {
+        const details = await client.getCoin(mint);
+        if (details) {
+          await ensureCoin(db, { programs: options.programs, loadCoin: async (m) => (m === mint ? details : client.getCoin(m)) }, mint);
+          coin = await getCoin(db, mint);
+        }
+      } catch {
+        // Fall through to 404
+      }
+    }
     if (!coin) throw new HttpError(404, "no coin with that address has been launched here");
     return coin;
   };

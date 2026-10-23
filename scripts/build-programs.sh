@@ -21,7 +21,13 @@ command -v cargo-build-sbf >/dev/null || { echo "cargo-build-sbf not found: run 
 # On WSL the repository usually sits on the Windows drive, where builds are
 # slow. Keep intermediate artifacts on the Linux filesystem instead.
 case "$REPO" in
-  /mnt/*) export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/.cache/archpad/sbf-target}" ;;
+  /mnt/*)
+    export CARGO_TARGET_DIR="${CARGO_TARGET_DIR:-$HOME/.cache/archpad/sbf-target}"
+    SBF_OUT_DIR="$HOME/.cache/archpad/deploy"
+    ;;
+  *)
+    SBF_OUT_DIR="$OUT_DIR"
+    ;;
 esac
 TARGET_DIR="${CARGO_TARGET_DIR:-$PROGRAMS_DIR/target}"
 command -v nm >/dev/null || { echo "nm not found: run scripts/setup-toolchain.sh" >&2; exit 1; }
@@ -35,7 +41,7 @@ else
   done
 fi
 
-mkdir -p "$OUT_DIR"
+mkdir -p "$OUT_DIR" "$SBF_OUT_DIR"
 LOG="$(mktemp)"
 trap 'rm -f "$LOG"' EXIT
 
@@ -80,8 +86,9 @@ for name in "${NAMES[@]}"; do
   manifest="$PROGRAMS_DIR/$name/Cargo.toml"
   [ -f "$manifest" ] || { echo "no such program: $name" >&2; exit 1; }
   echo "==> $name"
-  cargo build-sbf --manifest-path "$manifest" --sbf-out-dir "$OUT_DIR" 2>&1 | tee "$LOG"
-  [ -f "$OUT_DIR/archpad_$name.so" ] || { echo "error: build of $name produced no program" >&2; exit 1; }
+  cargo build-sbf --manifest-path "$manifest" --sbf-out-dir "$SBF_OUT_DIR" 2>&1 | tee "$LOG"
+  [ -f "$SBF_OUT_DIR/archpad_$name.so" ] || { echo "error: build of $name produced no program" >&2; exit 1; }
+  cp -f "$SBF_OUT_DIR/archpad_$name.so" "$OUT_DIR/archpad_$name.so"
   check_stack_frames "$name" "$TARGET_DIR/sbpf-solana-solana/release/archpad_$name.so"
 done
 

@@ -75,7 +75,7 @@ interface Origin {
  * it the indexer has met a coin it did not see launch (it was started part
  * way through the chain's history) and fills in what the curve account says.
  */
-async function ensureCoin(tx: Queryable, ctx: IngestContext, mint: Address, origin?: Origin): Promise<boolean> {
+export async function ensureCoin(tx: Queryable, ctx: IngestContext, mint: Address, origin?: Origin): Promise<boolean> {
   const existing = await tx.query("SELECT 1 FROM coins WHERE mint = $1", [mint]);
   if (existing.length > 0) return false;
 
@@ -84,8 +84,7 @@ async function ensureCoin(tx: Queryable, ctx: IngestContext, mint: Address, orig
   const { curve, metadata } = details;
   const params = curveParams(curve);
 
-  // A new row starts from the curve's opening reserves. The events that
-  // follow, in order, bring it to wherever the coin is now.
+  // A new row starts from the curve's opening reserves (or current reserves if recovered).
   await tx.query(
     `INSERT INTO coins (
        mint, creator, quote_mint, name, symbol, image, description, metadata_hash,
@@ -98,7 +97,7 @@ async function ensureCoin(tx: Queryable, ctx: IngestContext, mint: Address, orig
        $9, $10, $11, $12, $13,
        $14, $15, $16, $17,
        $18, $19, $20, $21, $22,
-       $12, $13, 0, $11
+       $23, $24, $25, $26
      )`,
     [
       mint,
@@ -123,6 +122,10 @@ async function ensureCoin(tx: Queryable, ctx: IngestContext, mint: Address, orig
       (origin?.createdAt ?? curve.launchedAt).toString(),
       origin?.height ?? 0,
       origin?.txid ?? "",
+      (origin ? curve.initialVirtualQuote : curve.virtualQuote).toString(),
+      (origin ? curve.initialVirtualToken : curve.virtualToken).toString(),
+      (origin ? 0n : curve.realQuote).toString(),
+      (origin ? curve.curveSupply : curve.realToken).toString(),
     ],
   );
   return true;

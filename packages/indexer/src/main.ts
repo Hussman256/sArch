@@ -98,8 +98,8 @@ async function main(): Promise<void> {
     publicUrl: env("PUBLIC_URL") ?? `http://localhost:${port}`,
     ...(env("CORS_ORIGIN") && { corsOrigin: env("CORS_ORIGIN")!.split(",").map((origin) => origin.trim()) }),
     ...(devFaucet && { devFaucet }),
-    // A local chain gets wiped and restarted; follow it rather than stop.
-    onChainChanged: deployment.network === "localnet" ? "reindex" : "fail",
+    // A test chain gets wiped and restarted; follow it rather than stop.
+    onChainChanged: deployment.network === "mainnet" ? "fail" : "reindex",
     log,
   });
 

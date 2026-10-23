@@ -1,0 +1,32 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://rpc.testnet.arch.network",
+  "bitcoinNetwork": "testnet",
+  "programs": {
+    "config": "4imFV6b3eScgkb8bEY4SZcFjuZXNcgjaWC8egoNSxaJu",
+    "launch": "4ELFjrDZk8q1c2VyJ1RRKAryBCqmU1gTP2of329xz8wQ",
+    "fees": "5ZbAqMMUGzjD7KGLYEiC8aoaixcqNBFQRRrF5MnLUojW",
+    "pool": "Ez7DfUYH7tr1DskR585fV7NKkA8HbL9nfhdHthV4X1s8"
+  },
+  "quotes": [
+    {
+      "symbol": "BTC",
+      "name": "Arch Bitcoin (aBTC)",
+      "mint": "BsScw2NUzyPjZpWyPqHqvQpvNLspYUkZryi8YSvoxtc5",
+      "decimals": 8
+    },
+    {
+      "symbol": "USD",
+      "name": "Arch USD (aUSD)",
+      "mint": "J6Kc9nCCAqfLeQPmm6TAXQ8mNNSt2qk8EwwZ2kLJC76i",
+      "decimals": 6
+    },
+    {
+      "symbol": "sUSD",
+      "name": "sArch USD (Test)",
+      "mint": "56XbX9kGbZgRnfSZSZAErZsTGra1UtJunjUhzPX2rwbd",
+      "decimals": 6
+    }
+  ],
+  "startHeight": 7595000
+}
